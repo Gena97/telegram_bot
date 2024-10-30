@@ -9,7 +9,6 @@ import (
 )
 
 func ProcessUpdates(s *Service) {
-
 	for update := range s.TelegramBot.TelegramBotChan { // Постоянно слушаем канал TelegramBotChan
 		text := update.Get("message.text").String()
 		chatID := update.Get("message.chat.id").Int()
