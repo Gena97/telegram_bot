@@ -8,10 +8,10 @@ import (
 )
 
 type Config struct {
-	TelegramToken string `yaml:"telegram_token"`
-	BotUrl        string `yaml:"bot_url"` // https://api.telegram.org/bot or http://localhost:8081/bot
-	DBUrl         string `yaml:"db_url"`
-	LogLevel      string `yaml:"log_level"`
+	TelegramBotToken    string `yaml:"telegram_bot_token"`
+	TelegramBotEndpoint string `yaml:"telegram_bot_endpoint"` // https://api.telegram.org/bot or http://localhost:8081/bot
+	DBUrl               string `yaml:"db_url"`
+	LogLevel            string `yaml:"log_level"`
 }
 
 // Load загружает конфигурацию из файла config.yaml

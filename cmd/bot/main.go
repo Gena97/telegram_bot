@@ -1,19 +1,12 @@
 package main
 
 import (
-	"log"
-
-	"github.com/Gena97/telegram_bot/internal/bot"
-	"github.com/Gena97/telegram_bot/internal/config"
+	"github.com/Gena97/telegram_bot/internal/pkg/app"
 )
 
 func main() {
-	cfg, err := config.Load("configs/config.yaml")
+	err := app.Run()
 	if err != nil {
-		log.Fatalf("error loading config: %v", err)
-	}
-
-	if err := bot.Run(cfg); err != nil {
-		log.Fatalf("error running bot: %v", err)
+		panic(err)
 	}
 }
