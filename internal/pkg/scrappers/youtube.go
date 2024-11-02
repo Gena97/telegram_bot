@@ -48,7 +48,7 @@ func DownloadVideoYoutube(videoURL string, client *youtube.Client) (model.VideoC
 	}
 
 	// Загрузка видео во временное хранилище
-	tempFile, err := os.Create(os.TempDir() + sanitizeFilename(video.Title) + ".mp4")
+	tempFile, err := os.Create(os.TempDir() + service.SanitizeFilename(video.Title) + ".mp4")
 	if err != nil {
 		return model.VideoConfig{}, err
 	}
@@ -113,19 +113,6 @@ func extractVideoIDFromURLYoutube(url string) string {
 	}
 
 	return lastPart
-}
-
-func sanitizeFilename(filename string) string {
-	// Список запрещенных символов
-	forbiddenChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|"}
-
-	// Замена запрещенных символов на "_"
-	for _, char := range forbiddenChars {
-		filename = strings.ReplaceAll(filename, char, "_")
-	}
-
-	// Возвращение очищенного имени файла
-	return filename
 }
 
 func extractTimeFromURL(videoURL string) (string, error) {

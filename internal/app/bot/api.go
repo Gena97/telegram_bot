@@ -162,3 +162,141 @@ func SendVideoAndDeleteFile(videoConfig model.VideoConfig) error {
 
 	return nil
 }
+
+// SendMediaContent sends a group of media files (videos and photos) as a single message via Telegram API
+func SendMediaContent(mediaConfig model.MediaContentConfig) error {
+	endpoint := fmt.Sprintf("%s/sendMediaGroup", mediaConfig.FullEndpoint)
+
+	captionAdded := false
+
+	// Prepare the payload
+	var mediaItems []map[string]interface{}
+	for _, video := range mediaConfig.VideosConfigs {
+
+		mediaItem := map[string]interface{}{
+			"type":               "video",
+			"media":              fmt.Sprintf("attach://%s", filepath.Base(video.FilePath)),
+			"supports_streaming": true,
+		}
+		if !captionAdded {
+			mediaItem["caption"] = generateCaption(mediaConfig)
+			mediaItem["parse_mode"] = "HTML"
+			captionAdded = true
+		}
+		mediaItems = append(mediaItems, mediaItem)
+	}
+	for _, photo := range mediaConfig.PhotosConfigs {
+		mediaItem := map[string]interface{}{
+			"type":  "photo",
+			"media": fmt.Sprintf("attach://%s", filepath.Base(photo.FilePath)),
+		}
+		if !captionAdded {
+			mediaItem["caption"] = generateCaption(mediaConfig)
+			mediaItem["parse_mode"] = "HTML"
+			captionAdded = true
+		}
+		mediaItems = append(mediaItems, mediaItem)
+	}
+
+	// Serialize media items to JSON
+	mediaItemsJSON, err := json.Marshal(mediaItems)
+	if err != nil {
+		return fmt.Errorf("failed to marshal media items: %v", err)
+	}
+
+	// Create a multipart request with each file
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	if err := writer.WriteField("chat_id", strconv.FormatInt(mediaConfig.ChatID, 10)); err != nil {
+		return err
+	}
+	if mediaConfig.ReplyToMessageID != 0 {
+		if err := writer.WriteField("reply_to_message_id", strconv.FormatInt(mediaConfig.ReplyToMessageID, 10)); err != nil {
+			return err
+		}
+	}
+	if err := writer.WriteField("media", string(mediaItemsJSON)); err != nil {
+		return err
+	}
+
+	// Attach files to the request
+	for _, video := range mediaConfig.VideosConfigs {
+		file, err := os.Open(video.FilePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		part, err := writer.CreateFormFile(filepath.Base(video.FilePath), filepath.Base(video.FilePath))
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(part, file); err != nil {
+			return err
+		}
+	}
+	for _, photo := range mediaConfig.PhotosConfigs {
+		file, err := os.Open(photo.FilePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		part, err := writer.CreateFormFile(filepath.Base(photo.FilePath), filepath.Base(photo.FilePath))
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(part, file); err != nil {
+			return err
+		}
+	}
+
+	// Close the writer to finalize the request body
+	if err := writer.Close(); err != nil {
+		return err
+	}
+
+	// Send the request
+	req, err := http.NewRequest("POST", endpoint, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Decode response
+	var result struct {
+		Ok bool `json:"ok"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return err
+	}
+
+	if !result.Ok {
+		return fmt.Errorf("failed to send media group")
+	}
+
+	// Clean up files after sending
+	for _, video := range mediaConfig.VideosConfigs {
+		os.Remove(video.FilePath)
+	}
+	for _, photo := range mediaConfig.PhotosConfigs {
+		os.Remove(photo.FilePath)
+	}
+
+	return nil
+}
+
+// generateCaption generates a caption for a media item
+func generateCaption(mediaConfig model.MediaContentConfig) string {
+	caption := fmt.Sprintf("<a href='%s'>%s</a>", mediaConfig.Link, mediaConfig.Title)
+	if mediaConfig.Sender != "" {
+		caption += fmt.Sprintf("\n\nSent by %s", mediaConfig.Sender)
+	}
+	return caption
+}

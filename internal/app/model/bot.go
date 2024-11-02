@@ -18,3 +18,24 @@ type VideoConfig struct {
 	VideoURL         string
 	Sender           string
 }
+
+type PhotoConfig struct {
+	FilePath         string
+	Title            string
+	FullEndpoint     string
+	ChatID           int64
+	ReplyToMessageID int64
+	PhotoURL         string
+	Sender           string
+}
+
+type MediaContentConfig struct {
+	VideosConfigs    []VideoConfig
+	PhotosConfigs    []PhotoConfig
+	Title            string
+	Link             string
+	FullEndpoint     string
+	ChatID           int64
+	ReplyToMessageID int64
+	Sender           string
+}

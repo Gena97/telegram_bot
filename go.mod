@@ -4,6 +4,7 @@ go 1.22.6
 
 require (
 	github.com/kkdai/youtube/v2 v2.10.1
+	github.com/n0madic/twitter-scraper v0.0.0-20231104223941-296710769dd8
 	github.com/tidwall/gjson v1.18.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -16,5 +17,6 @@ require (
 	github.com/google/pprof v0.0.0-20240227163752-401108e1b7e7 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
+	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )
