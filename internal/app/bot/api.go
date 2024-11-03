@@ -15,8 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Gena97/telegram_bot/internal/app/model"
 	"github.com/tidwall/gjson"
+
+	"github.com/Gena97/telegram_bot/internal/app/model"
 )
 
 // getUpdates получает обновления от Telegram API
@@ -204,10 +205,7 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 			mediaItem["duration"] = strconv.Itoa(video.Duration)
 		}
 		if !captionAdded {
-			caption := generateCaption(mediaConfig)
-			if video.Timing != "" {
-				caption += fmt.Sprintf("\n\n%s", video.Timing)
-			}
+			caption := generateCaption(mediaConfig, video.Timing)
 			mediaItem["caption"] = caption
 			mediaItem["parse_mode"] = "HTML"
 			captionAdded = true
@@ -220,7 +218,7 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 			"media": fmt.Sprintf("attach://%s", filepath.Base(photo.FilePath)),
 		}
 		if !captionAdded {
-			mediaItem["caption"] = generateCaption(mediaConfig)
+			mediaItem["caption"] = generateCaption(mediaConfig, "")
 			mediaItem["parse_mode"] = "HTML"
 			captionAdded = true
 		}
@@ -236,7 +234,7 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 			mediaItem["duration"] = strconv.Itoa(audio.Duration)
 		}
 		if !captionAdded {
-			mediaItem["caption"] = generateCaption(mediaConfig)
+			mediaItem["caption"] = generateCaption(mediaConfig, "")
 			mediaItem["parse_mode"] = "HTML"
 			captionAdded = true
 		}
@@ -405,8 +403,11 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 }
 
 // generateCaption generates a caption for a media item
-func generateCaption(mediaConfig model.MediaContentConfig) string {
+func generateCaption(mediaConfig model.MediaContentConfig, timing string) string {
 	caption := fmt.Sprintf("<a href='%s'>%s</a>", mediaConfig.Link, mediaConfig.Title)
+	if timing != "" {
+		caption += fmt.Sprintf("\n\n%s", timing)
+	}
 	if mediaConfig.Sender != "" {
 		caption += fmt.Sprintf("\n\nSent by %s", mediaConfig.Sender)
 	}

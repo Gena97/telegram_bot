@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/kkdai/youtube/v2"
+
 	"github.com/Gena97/telegram_bot/internal/app/model"
 	"github.com/Gena97/telegram_bot/internal/service"
-	"github.com/kkdai/youtube/v2"
 )
 
 func GetYoutubeClient() *youtube.Client {
@@ -131,15 +133,25 @@ func extractTimeFromURL(videoURL string) (string, error) {
 		return "", fmt.Errorf("тайминг отсутствует")
 	}
 
-	seconds, err := strconv.Atoi(timing)
-	if err != nil {
-		return "", err
+	// Проверка формата `число` (в секундах)
+	if seconds, err := strconv.Atoi(timing); err == nil {
+		hours := seconds / 3600
+		minutes := (seconds % 3600) / 60
+		seconds = seconds % 60
+		return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds), nil
 	}
 
-	// Преобразование секунд в форматированное время.
-	hours := seconds / 3600
-	minutes := (seconds % 3600) / 60
-	seconds = seconds % 60
+	// Проверка формата `XhYmZs`, `XmYs` или только `Xs`
+	re := regexp.MustCompile(`(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?`)
+	matches := re.FindStringSubmatch(timing)
+	if matches == nil {
+		return "", fmt.Errorf("неизвестный формат времени: %s", timing)
+	}
+
+	// Преобразование часов, минут и секунд из строки в целое число (если поле пустое, присваиваем 0)
+	hours, _ := strconv.Atoi(matches[1])
+	minutes, _ := strconv.Atoi(matches[2])
+	seconds, _ := strconv.Atoi(matches[3])
 
 	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds), nil
 }
@@ -249,7 +261,7 @@ func DownloadVideoYoutubeV2(url string) (model.MediaContentConfig, error) {
 
 	mediaContentConfig.VideosConfigs = append(mediaContentConfig.VideosConfigs, videoConfig)
 	mediaContentConfig.Link = url
-	mediaContentConfig.Title = newestFile.Name()
+	mediaContentConfig.Title = newestFile.Name()[:len(newestFile.Name())-4]
 
 	return mediaContentConfig, nil
 }

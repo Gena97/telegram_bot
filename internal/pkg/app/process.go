@@ -66,7 +66,6 @@ func handleCommand(s *Service, text, fullEndpoint, firstName string, chatID, rep
 			bot.SendMediaContent(mediaContentConfig, messageID)
 		}
 	default:
-		bot.SendMessage(s.TelegramBot.FullEndpoint, chatID, "Unknown command.", "")
 	}
 }
 
@@ -106,7 +105,6 @@ func handleCommandAM(s *Service, text, fullEndpoint, firstName string, chatID, r
 			bot.SendMediaContent(mediaContentConfig, messageID)
 		}
 	default:
-		bot.SendMessage(s.TelegramBotAM.FullEndpoint, chatID, "Unknown command.", "")
 	}
 }
 
