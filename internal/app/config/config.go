@@ -9,7 +9,8 @@ import (
 
 type Config struct {
 	TelegramBotToken        string `yaml:"telegram_bot_token"`
-	TelegramBotEndpoint     string `yaml:"telegram_bot_endpoint"` // https://api.telegram.org/bot or http://localhost:8081/bot
+	TelegramBotTokenAM      string `yaml:"telegram_bot_token_am"`
+	TelegramBotEndpoint     string `yaml:"telegram_bot_endpoint"`
 	TelegramServerID        string `yaml:"telegram_server_id"`
 	TelegramServerHash      string `yaml:"telegram_server_hash"`
 	TwitterScrapperLogin    string `yaml:"scrapper_twitter_login"`

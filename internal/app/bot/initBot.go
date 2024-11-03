@@ -13,9 +13,9 @@ import (
 func GetTelegramBot(telegramBotEndpoint, telegramBotToken string) (model.TelegramBot, error) {
 	apiURL := fmt.Sprintf("%s%s", telegramBotEndpoint, telegramBotToken)
 	updatesChan := make(chan gjson.Result)
-	offset := 0
 
 	go func() {
+		var offset int64
 		defer close(updatesChan)
 		for {
 			updates, err := GetUpdates(apiURL, offset, []string{"message", "message_reaction"})
@@ -27,7 +27,7 @@ func GetTelegramBot(telegramBotEndpoint, telegramBotToken string) (model.Telegra
 
 			for _, update := range updates {
 				log.Println(update)
-				offset = int(update.Get("update_id").Int()) + 1
+				offset = update.Get("update_id").Int() + 1
 				updatesChan <- update // отправка обновления в канал
 			}
 

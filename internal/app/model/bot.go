@@ -29,9 +29,21 @@ type PhotoConfig struct {
 	Sender           string
 }
 
+type AudioConfig struct {
+	FilePath         string
+	Title            string
+	FullEndpoint     string
+	ChatID           int64
+	ReplyToMessageID int64
+	AudioURL         string
+	Sender           string
+	Duration         int
+}
+
 type MediaContentConfig struct {
 	VideosConfigs    []VideoConfig
 	PhotosConfigs    []PhotoConfig
+	AudioConfigs     []AudioConfig
 	Title            string
 	Link             string
 	FullEndpoint     string

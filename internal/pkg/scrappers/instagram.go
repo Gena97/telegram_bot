@@ -14,7 +14,7 @@ import (
 func DownloadContentInstagram(url string) (model.MediaContentConfig, error) {
 	var instContent model.MediaContentConfig
 
-	cmd := exec.Command("node", "../../instagram-direct-url-main/node_modules/instagram-url-direct/src/test.js", url)
+	cmd := exec.Command("node", "../../utilities/instagram-direct-url-main/node_modules/instagram-url-direct/src/test.js", url)
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
 	log.Println(outputStr)

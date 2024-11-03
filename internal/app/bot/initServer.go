@@ -28,7 +28,7 @@ func InitTelegramServer(cfg *config.Config) error {
 		fmt.Println("Приложение telegram-bot-api.exe не запущено. Запускаю...")
 
 		// Команда для запуска приложения с параметрами
-		telegramCmd = exec.Command("../../utilities/telegram-bot-api.exe", "--api-id", cfg.TelegramServerID, "--api-hash", cfg.TelegramServerHash)
+		telegramCmd = exec.Command("../../utilities/telegram-server/telegram-bot-api.exe", "--api-id", cfg.TelegramServerID, "--api-hash", cfg.TelegramServerHash)
 
 		// Запуск команды
 		err = telegramCmd.Start()

@@ -19,7 +19,7 @@ var ImageExtensions = []string{"jpg", "jpeg", "png", "gif", "bmp"}
 
 func SanitizeFilename(filename string) string {
 	// Список запрещенных символов
-	forbiddenChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|"}
+	forbiddenChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|", " "}
 
 	// Замена запрещенных символов на "_"
 	for _, char := range forbiddenChars {

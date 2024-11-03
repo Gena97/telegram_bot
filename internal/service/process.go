@@ -15,3 +15,12 @@ func DetectContentType(url string) string {
 		return ""
 	}
 }
+
+// isCommand проверяет, является ли текст команды.
+func IsCommand(text string) bool {
+	return strings.HasPrefix(text, "/")
+}
+
+func ParseCommandArgs(text string) []string {
+	return strings.Split(text, " ")
+}
