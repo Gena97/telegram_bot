@@ -2,9 +2,28 @@ package model
 
 import "github.com/tidwall/gjson"
 
+const MemniyRayChatID = -1001290328010
+const MemniyRayTag = "memniy_ray"
+
 type TelegramBot struct {
 	TelegramBotChan chan gjson.Result
 	FullEndpoint    string
+	Token           string
+}
+
+const (
+	ChatTypePrivate = "private"
+)
+
+type Message struct {
+	RawMsg           gjson.Result
+	Text             string
+	ChatID           int64
+	ChatType         string
+	ReplyToMessageID int64
+	FromFirstName    string
+	MessageID        int64
+	FromID           int64
 }
 
 type VideoConfig struct {
@@ -17,6 +36,7 @@ type VideoConfig struct {
 	ReplyToMessageID int64
 	VideoURL         string
 	Sender           string
+	Thumbnail        []byte
 }
 
 type PhotoConfig struct {
@@ -50,4 +70,12 @@ type MediaContentConfig struct {
 	ChatID           int64
 	ReplyToMessageID int64
 	Sender           string
+}
+
+type User struct {
+	UserID    int64
+	FirstName string
+	LastName  string
+	Username  string
+	IsAdmin   bool
 }

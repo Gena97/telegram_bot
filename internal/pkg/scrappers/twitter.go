@@ -121,7 +121,12 @@ func DownloadContentTwitter(tweetURL string, scrapper *twitterscraper.Scraper) (
 			return model.MediaContentConfig{}, err
 		}
 
-		videoConfig := model.VideoConfig{FilePath: filePath, Title: tweet.Text, VideoURL: video.URL, Duration: duration}
+		thumbnail, err := service.GetVideoPreview(filePath)
+		if err != nil {
+			log.Printf("ошибка получения превью видео:%v", err)
+		}
+
+		videoConfig := model.VideoConfig{FilePath: filePath, Title: tweet.Text, VideoURL: video.URL, Duration: duration, Thumbnail: thumbnail}
 
 		twitterContent.VideosConfigs = append(twitterContent.VideosConfigs, videoConfig)
 	}

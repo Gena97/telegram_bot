@@ -1,2 +1,7 @@
 **/config.yaml
 **/cookiesTwitter.json
+cmd/bot/*
+!cmd/bot/main.go
+utilities/yt-dlp/*
+!utilities/yt-dlp/yt-dlp_x86.exe
+**/database

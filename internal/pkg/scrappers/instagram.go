@@ -52,8 +52,12 @@ func DownloadContentInstagram(url string) (model.MediaContentConfig, error) {
 					log.Printf("Ошибка при получении продолжительности файла: %v", err)
 					return model.MediaContentConfig{}, err
 				}
+				thumbnail, err := service.GetVideoPreview(filepath)
+				if err != nil {
+					log.Printf("ошибка получения превью видео:%v", err)
+				}
 
-				videoConfig := model.VideoConfig{FilePath: filepath, Title: "inst", VideoURL: url, Duration: duration}
+				videoConfig := model.VideoConfig{FilePath: filepath, Title: "inst", VideoURL: url, Duration: duration, Thumbnail: thumbnail}
 				instContent.VideosConfigs = append(instContent.VideosConfigs, videoConfig)
 			}
 		}

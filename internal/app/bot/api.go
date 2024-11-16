@@ -18,9 +18,9 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/Gena97/telegram_bot/internal/app/model"
+	"github.com/Gena97/telegram_bot/internal/service"
 )
 
-// getUpdates получает обновления от Telegram API
 func GetUpdates(apiURL string, offset int64, allowedUpdates []string) ([]gjson.Result, error) {
 	// Формируем параметры запроса
 	params := url.Values{}
@@ -56,7 +56,7 @@ func GetUpdates(apiURL string, offset int64, allowedUpdates []string) ([]gjson.R
 }
 
 // sendMessage отправляет сообщение через Telegram API
-func SendMessage(apiURL string, chatID int64, text, parse_mode string) error {
+func SendMessage(apiURL string, chatID int64, text, parse_mode string, replyToMessageID, deleteMessage int64) error {
 	endpoint := fmt.Sprintf("%s/sendMessage", apiURL)
 
 	data := url.Values{}
@@ -64,6 +64,9 @@ func SendMessage(apiURL string, chatID int64, text, parse_mode string) error {
 	data.Set("text", text)
 	if parse_mode != "" {
 		data.Set("parse_mode", "HTML")
+	}
+	if replyToMessageID != 0 {
+		data.Set("reply_to_message_id", strconv.FormatInt(replyToMessageID, 10))
 	}
 
 	resp, err := http.PostForm(endpoint, data)
@@ -81,6 +84,11 @@ func SendMessage(apiURL string, chatID int64, text, parse_mode string) error {
 
 	if !result.Ok {
 		return fmt.Errorf("failed to send message")
+	}
+
+	err = DeleteMessage(chatID, apiURL, deleteMessage)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -188,10 +196,13 @@ func SendVideoAndDeleteFile(videoConfig model.VideoConfig, messageID int64) (int
 }
 
 // SendMediaContent sends a group of media files (videos and photos) as a single message via Telegram API
-func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]int64, error) {
+func SendMediaContent(mediaConfig model.MediaContentConfig, messageIDtoDelete int64) ([]int64, error) {
 	endpoint := fmt.Sprintf("%s/sendMediaGroup", mediaConfig.FullEndpoint)
 
 	captionAdded := false
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
 
 	// Prepare the payload
 	var mediaItems []map[string]interface{}
@@ -201,10 +212,21 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 			"media":              fmt.Sprintf("attach://%s", filepath.Base(video.FilePath)),
 			"supports_streaming": true,
 		}
+		if len(video.Thumbnail) > 0 {
+			// Используем attach:// для указания миниатюры
+			thumbnailPart, err := writer.CreateFormFile("thumbnail", "thumbnail.jpg") // Используйте нужный вам тип
+			if err != nil {
+				return nil, err
+			}
+			if _, err := thumbnailPart.Write(video.Thumbnail); err != nil { // video.ThumbnailData - это []byte миниатюры
+				return nil, err
+			}
+			mediaItem["thumbnail"] = fmt.Sprintf("attach://%s", "thumbnail.jpg") // Указываем имя для attach
+		}
 		if video.Duration != 0 {
 			mediaItem["duration"] = strconv.Itoa(video.Duration)
 		}
-		if !captionAdded {
+		if !captionAdded && mediaConfig.ChatID != model.MemniyRayChatID {
 			caption := generateCaption(mediaConfig, video.Timing)
 			mediaItem["caption"] = caption
 			mediaItem["parse_mode"] = "HTML"
@@ -217,7 +239,7 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 			"type":  "photo",
 			"media": fmt.Sprintf("attach://%s", filepath.Base(photo.FilePath)),
 		}
-		if !captionAdded {
+		if !captionAdded && mediaConfig.ChatID != model.MemniyRayChatID {
 			mediaItem["caption"] = generateCaption(mediaConfig, "")
 			mediaItem["parse_mode"] = "HTML"
 			captionAdded = true
@@ -225,7 +247,7 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 		mediaItems = append(mediaItems, mediaItem)
 	}
 
-	for _, audio := range mediaConfig.AudioConfigs {
+	for i, audio := range mediaConfig.AudioConfigs {
 		mediaItem := map[string]interface{}{
 			"type":  "audio",
 			"media": fmt.Sprintf("attach://%s", filepath.Base(audio.FilePath)),
@@ -233,9 +255,10 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 		if audio.Duration != 0 {
 			mediaItem["duration"] = strconv.Itoa(audio.Duration)
 		}
-		if !captionAdded {
+		if i == len(mediaConfig.AudioConfigs)-1 && mediaConfig.ChatID != model.MemniyRayChatID {
 			mediaItem["caption"] = generateCaption(mediaConfig, "")
 			mediaItem["parse_mode"] = "HTML"
+			mediaItem["title"] = audio.Title
 			captionAdded = true
 		}
 		mediaItems = append(mediaItems, mediaItem)
@@ -247,9 +270,6 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 		return []int64{}, fmt.Errorf("failed to marshal media items: %v", err)
 	}
 
-	// Create a multipart request with each file
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
 	if err := writer.WriteField("chat_id", strconv.FormatInt(mediaConfig.ChatID, 10)); err != nil {
 		return []int64{}, err
 	}
@@ -323,7 +343,7 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 	}
 
 	// Send the request
-	req, err := http.NewRequest("POST", endpoint, body)
+	req, err := http.NewRequest("POST", endpoint, &buf)
 	if err != nil {
 		return []int64{}, err
 	}
@@ -394,7 +414,7 @@ func SendMediaContent(mediaConfig model.MediaContentConfig, messageID int64) ([]
 	}
 
 	// Delete the original message if needed
-	err = DeleteMessage(mediaConfig.ChatID, mediaConfig.FullEndpoint, messageID)
+	err = DeleteMessage(mediaConfig.ChatID, mediaConfig.FullEndpoint, messageIDtoDelete)
 	if err != nil {
 		return []int64{}, err
 	}
@@ -447,8 +467,67 @@ func DeleteMessage(chatID int64, fullEndpoint string, messageID int64) error {
 	}
 
 	if !result.Ok {
-		return fmt.Errorf("failed to delete message")
+		log.Printf("failed to delete message")
 	}
 
 	return nil
+}
+
+func GetAndDownloadReplyMedia(bot model.TelegramBot, message gjson.Result) (service.FileFromServer, error) {
+
+	replyToMessage := message.Get("reply_to_message")
+	if replyToMessage.Exists() {
+		var fileID string
+		var mediaType string
+
+		if replyToMessage.Get("photo").Exists() {
+			// Get the ID of the largest photo
+			photos := replyToMessage.Get("photo").Array()
+			fileID = photos[len(photos)-1].Get("file_id").String()
+			mediaType = "photo"
+		} else if replyToMessage.Get("video").Exists() {
+			// Get the video ID
+			fileID = replyToMessage.Get("video.file_id").String()
+			mediaType = "video"
+		} else {
+			return service.FileFromServer{}, fmt.Errorf("no media found in the reply message")
+		}
+
+		// Attempt to download the file
+		filePath, err := DownloadFile(bot, fileID)
+		if err != nil {
+			return service.FileFromServer{}, err // Return the error if download fails
+		}
+
+		return service.FileFromServer{Type: mediaType, FilePath: filePath}, nil // Return the path of the saved file
+	}
+
+	return service.FileFromServer{}, fmt.Errorf("no reply message found")
+}
+
+func DownloadFile(bot model.TelegramBot, fileID string) (string, error) {
+	// Получаем информацию о файле
+	fileURL := fmt.Sprintf("%s/getFile?file_id=%s", bot.FullEndpoint, fileID)
+
+	resp, err := http.Get(fileURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to get file information: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to get file information: %s", resp.Status)
+	}
+
+	var fileResponse struct {
+		Result struct {
+			FilePath string `json:"file_path"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&fileResponse); err != nil {
+		return "", fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return strings.ReplaceAll(fmt.Sprintf("%s\\%s", bot.Token, fileResponse.Result.FilePath), ":", "~"), nil
 }

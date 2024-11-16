@@ -3,17 +3,20 @@ package scrappers
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"log"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kkdai/youtube/v2"
+	"golang.org/x/exp/rand"
 
 	"github.com/Gena97/telegram_bot/internal/app/model"
 	"github.com/Gena97/telegram_bot/internal/service"
@@ -79,7 +82,7 @@ func DownloadVideoYoutube(videoURL string, client *youtube.Client) (model.VideoC
 
 	timing, err := extractTimeFromURL(videoURL)
 	if err != nil {
-		log.Printf("Тайминг у видео не найден")
+		log.Printf("Тайминг в ссылке ютуб видео не найден")
 	}
 
 	return model.VideoConfig{FilePath: videoPath, Title: video.Title, Duration: duration, Timing: timing}, nil
@@ -157,65 +160,96 @@ func extractTimeFromURL(videoURL string) (string, error) {
 }
 
 // DownloadAudio загружает аудио из видео по URL и сохраняет его в формате MP3
-func DownloadAudioYoutube(url string) (model.AudioConfig, error) {
-	var config model.AudioConfig
+func DownloadAudioYoutube(url string) ([]model.AudioConfig, error) {
+	var configs []model.AudioConfig
 
-	// Директория для сохранения аудио файлов
+	// Генерируем случайный префикс для имени папки
+	rand.Seed(uint64(time.Now().UnixNano()))
+	randNum := rand.Intn(100000)
+	strRanNum := strconv.Itoa(randNum)
+
 	outputDir := "../../utilities/yt-dlp/"
-	outputTemplate := outputDir + "%(title)s.%(ext)s"
+	// Шаблон для сохранения файла
+	outputTemplate := filepath.Join(outputDir, "%(title)s"+strRanNum)
 
 	// Команда для загрузки только аудиодорожки и конвертации в MP3
 	cmd := exec.Command("../../utilities/yt-dlp/yt-dlp_x86.exe", "-f", "bestaudio", "--extract-audio", "--audio-format", "mp3", "-o", outputTemplate, url)
 
 	// Выполняем команду
 	if err := cmd.Run(); err != nil {
-		return model.AudioConfig{}, fmt.Errorf("error downloading audio: %w", err)
+		return []model.AudioConfig{}, fmt.Errorf("error downloading audio: %w", err)
 	}
 
 	// Читаем содержимое директории для поиска самого нового mp3 файла
-	files, err := ioutil.ReadDir(outputDir)
+	files, err := os.ReadDir(outputDir)
 	if err != nil {
-		return model.AudioConfig{}, fmt.Errorf("error reading directory: %w", err)
+		return []model.AudioConfig{}, fmt.Errorf("error reading directory: %w", err)
 	}
 
 	// Ищем самый новый файл с расширением .mp3
-	var newestFile os.FileInfo
+	var newestFiles []fs.DirEntry
 	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".mp3") {
-			if newestFile == nil || file.ModTime().After(newestFile.ModTime()) {
-				newestFile = file
-			}
+		if strings.Contains(file.Name(), strRanNum) {
+			newestFiles = append(newestFiles, file)
 		}
 	}
 
 	// Проверяем, найден ли файл
-	if newestFile == nil {
-		return model.AudioConfig{}, fmt.Errorf("no mp3 file found in directory")
+	if newestFiles == nil {
+		return []model.AudioConfig{}, fmt.Errorf("no mp3 file found in directory")
 	}
 
-	// Устанавливаем путь к найденному файлу в конфигурации
-	config.FilePath = filepath.Join(outputDir, newestFile.Name())
+	// Сортируем по времени создания
+	sort.Slice(newestFiles, func(i, j int) bool {
+		info1, err1 := files[i].Info()
+		info2, err2 := files[j].Info()
+		if err1 != nil || err2 != nil {
+			panic("Failed to retrieve file info")
+		}
+		return info1.ModTime().Before(info2.ModTime())
+	})
 
-	duration, err := service.GetDuration(config.FilePath)
-	if err != nil {
-		log.Printf("Ошибка при получении продолжительности файла: %v", err)
-	} else {
-		config.Duration = duration
+	for _, newestFile := range newestFiles {
+		var config model.AudioConfig
+		// Устанавливаем путь к найденному файлу в конфигурации
+		config.FilePath = filepath.Join(outputDir, newestFile.Name())
+		duration, err := service.GetDuration(config.FilePath)
+		if err != nil {
+			log.Printf("Ошибка при получении продолжительности файла: %v", err)
+		} else {
+			config.Duration = duration
+		}
+		config.Title = newestFile.Name()[:len(newestFile.Name())-(5+len(strRanNum))]
+		configs = append(configs, config)
 	}
 
-	return config, nil
+	return configs, nil
 }
 
 // DownloadVideo загружает видео по URL и сохраняет его в формате MP4 с максимальным качеством 720p
 func DownloadVideoYoutubeV2(url string) (model.MediaContentConfig, error) {
 	var mediaContentConfig model.MediaContentConfig
 	var videoConfig model.VideoConfig
+
 	// Директория для сохранения видео файлов
+
+	// Генерируем случайный префикс для имени папки
+	rand.Seed(uint64(time.Now().UnixNano()))
+	randNum := rand.Intn(100000)
+	strRanNum := strconv.Itoa(randNum)
+
 	outputDir := "../../utilities/yt-dlp/"
-	outputTemplate := outputDir + "%(title)s.%(ext)s"
+
+	// Шаблон для сохранения файла
+	outputTemplate := filepath.Join(outputDir, "%(title)s.%(ext)s"+strRanNum)
 
 	// Команда для загрузки видео с ограничением качества 720p и сохранением в формате MP4
-	cmd := exec.Command("../../utilities/yt-dlp/yt-dlp_x86.exe", "-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]", "-o", outputTemplate, url)
+	cmd := exec.Command(
+		"../../utilities/yt-dlp/yt-dlp_x86.exe",
+		"-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]",
+		"-o", outputTemplate, // Шаблон имени файла
+		url,
+	)
 
 	// Выполняем команду
 	if err := cmd.Run(); err != nil {
@@ -223,31 +257,44 @@ func DownloadVideoYoutubeV2(url string) (model.MediaContentConfig, error) {
 	}
 
 	// Читаем содержимое директории для поиска самого нового mp4 файла
-	files, err := ioutil.ReadDir(outputDir)
+	files, err := os.ReadDir(outputDir)
 	if err != nil {
 		return model.MediaContentConfig{}, fmt.Errorf("error reading directory: %w", err)
 	}
 
-	// Ищем самый новый файл с расширением .mp4
-	var newestFile os.FileInfo
+	var newFile fs.DirEntry
+
 	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".mp4") {
-			if newestFile == nil || file.ModTime().After(newestFile.ModTime()) {
-				newestFile = file
-			}
+		if strings.Contains(file.Name(), strRanNum) {
+			newFile = file
+			break
 		}
 	}
 
-	// Проверяем, найден ли файл
-	if newestFile == nil {
-		return model.MediaContentConfig{}, fmt.Errorf("no mp4 file found in directory")
+	// Применяем sanitize к имени файла
+	sanitizedFileName := service.SanitizeFilename(newFile.Name())
+
+	// Получаем абсолютный путь для нового имени файла
+	oldFilePath := filepath.Join(outputDir, newFile.Name())
+	newFilePath := filepath.Join(outputDir, sanitizedFileName)
+
+	// Переименовываем файл
+	if err := os.Rename(oldFilePath, newFilePath); err != nil {
+		return model.MediaContentConfig{}, fmt.Errorf("error renaming file: %w", err)
 	}
 
 	timing, err := extractTimeFromURL(url)
 	if err != nil {
 		log.Printf("Тайминг у видео не найден")
 	}
-	videoConfig.FilePath = filepath.Join(outputDir, newestFile.Name())
+
+	absoluteFilePath, err := filepath.Abs(filepath.Join(outputDir, sanitizedFileName))
+	if err != nil {
+		return model.MediaContentConfig{}, fmt.Errorf("error getting absolute path: %w", err)
+	}
+
+	videoConfig.FilePath = absoluteFilePath
+
 	duration, err := service.GetDuration(videoConfig.FilePath)
 	if err != nil {
 		log.Printf("Ошибка при получении продолжительности файла: %v", err)
@@ -258,10 +305,13 @@ func DownloadVideoYoutubeV2(url string) (model.MediaContentConfig, error) {
 	// Устанавливаем путь к найденному файлу в конфигурации
 
 	videoConfig.Timing = timing
-
+	videoConfig.Thumbnail, err = service.GetVideoPreview(videoConfig.FilePath)
+	if err != nil {
+		log.Printf("ошибка получения превью видео:%v", err)
+	}
 	mediaContentConfig.VideosConfigs = append(mediaContentConfig.VideosConfigs, videoConfig)
 	mediaContentConfig.Link = url
-	mediaContentConfig.Title = newestFile.Name()[:len(newestFile.Name())-4]
+	mediaContentConfig.Title = newFile.Name()[:len(newFile.Name())-(8+len(strRanNum))]
 
 	return mediaContentConfig, nil
 }
